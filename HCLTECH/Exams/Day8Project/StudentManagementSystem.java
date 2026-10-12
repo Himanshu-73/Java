@@ -1,14 +1,15 @@
-package Exams.Day8Project;
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 
-// Parent class
+// ===================== Model =====================
+
 abstract class Student {
-    int id;
-    String name;
-    String course;
-    double marks;
-    String grade;
+    private final int id;
+    private String name;
+    private String course;
+    private double marks;
 
     Student(int id, String name, String course, double marks) {
         this.id = id;
@@ -17,263 +18,246 @@ abstract class Student {
         this.marks = marks;
     }
 
-    // Polymorphic method
-    abstract void calculateGrade();
+    int getId()        { return id; }
+    String getName()   { return name; }
+    String getCourse() { return course; }
+    double getMarks()  { return marks; }
+
+    void setName(String name)     { this.name = name; }
+    void setCourse(String course) { this.course = course; }
+    void setMarks(double marks)   { this.marks = marks; }
+
+    // Grade is derived from marks on demand, so it can never be stale
+    // and no overridable method is called from a constructor.
+    abstract String getGrade();
+
+    abstract String getCategory();
 
     void display() {
-        System.out.println("ID     : " + id);
-        System.out.println("Name   : " + name);
-        System.out.println("Course : " + course);
-        System.out.println("Marks  : " + marks);
-        System.out.println("Grade  : " + grade);
+        System.out.println("ID       : " + id);
+        System.out.println("Name     : " + name);
+        System.out.println("Course   : " + course);
+        System.out.println("Category : " + getCategory());
+        System.out.printf("Marks    : %.2f%n", marks);
+        System.out.println("Grade    : " + getGrade());
         System.out.println("-------------------------");
     }
 }
 
-// Regular student
 class RegularStudent extends Student {
 
     RegularStudent(int id, String name, String course, double marks) {
         super(id, name, course, marks);
-        calculateGrade();
     }
 
     @Override
-    void calculateGrade() {
-        if (marks >= 90)
-            grade = "A+";
-        else if (marks >= 80)
-            grade = "A";
-        else if (marks >= 70)
-            grade = "B";
-        else if (marks >= 60)
-            grade = "C";
-        else if (marks >= 50)
-            grade = "D";
-        else
-            grade = "F";
+    String getGrade() {
+        double m = getMarks();
+        if (m >= 90) return "A+";
+        if (m >= 80) return "A";
+        if (m >= 70) return "B";
+        if (m >= 60) return "C";
+        if (m >= 50) return "D";
+        return "F";
     }
+
+    @Override
+    String getCategory() { return "Regular"; }
 }
 
-// Scholarship student
 class ScholarshipStudent extends Student {
 
     ScholarshipStudent(int id, String name, String course, double marks) {
         super(id, name, course, marks);
-        calculateGrade();
     }
 
     @Override
-    void calculateGrade() {
-        if (marks >= 85)
-            grade = "A+";
-        else if (marks >= 75)
-            grade = "A";
-        else if (marks >= 65)
-            grade = "B";
-        else if (marks >= 50)
-            grade = "C";
-        else
-            grade = "F";
+    String getGrade() {
+        double m = getMarks();
+        if (m >= 85) return "A+";
+        if (m >= 75) return "A";
+        if (m >= 65) return "B";
+        if (m >= 50) return "C";
+        return "F";
     }
+
+    @Override
+    String getCategory() { return "Scholarship"; }
 }
 
-// Main class
+// ===================== Application =====================
+
 public class StudentManagementSystem {
 
-    static ArrayList<Student> students = new ArrayList<>();
-    static Scanner sc = new Scanner(System.in);
+    private static final Map<Integer, Student> students = new LinkedHashMap<>();
+    private static final Scanner sc = new Scanner(System.in);
 
-    // Add student
-    static void addStudent() {
+    // ---------- Input helpers (all use nextLine, so no leftover-newline bugs) ----------
 
-        System.out.print("Enter Student ID: ");
-        int id = sc.nextInt();
-        sc.nextLine();
-
-        // Check duplicate ID
-        for (Student s : students) {
-            if (s.id == id) {
-                System.out.println("Student ID already exists!");
-                return;
+    private static int readInt(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            try {
+                return Integer.parseInt(sc.nextLine().trim());
+            } catch (NumberFormatException e) {
+                System.out.println("Please enter a valid whole number.");
             }
         }
+    }
 
-        System.out.print("Enter Name: ");
-        String name = sc.nextLine();
+    private static int readPositiveInt(String prompt) {
+        while (true) {
+            int value = readInt(prompt);
+            if (value > 0) return value;
+            System.out.println("Value must be greater than 0.");
+        }
+    }
 
-        System.out.print("Enter Course: ");
-        String course = sc.nextLine();
+    private static String readNonEmpty(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            String value = sc.nextLine().trim();
+            if (!value.isEmpty()) return value;
+            System.out.println("This field cannot be empty.");
+        }
+    }
 
-        System.out.print("Enter Marks: ");
-        double marks = sc.nextDouble();
+    private static double readMarks(String prompt) {
+        while (true) {
+            System.out.print(prompt);
+            try {
+                double marks = Double.parseDouble(sc.nextLine().trim());
+                if (Double.isNaN(marks) || marks < 0 || marks > 100) {
+                    System.out.println("Marks should be between 0 and 100.");
+                } else {
+                    return marks;
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Please enter a valid number.");
+            }
+        }
+    }
 
-        if (marks < 0 || marks > 100) {
-            System.out.println("Marks should be between 0 and 100.");
+    // ---------- Operations ----------
+
+    private static void addStudent() {
+        int id = readPositiveInt("Enter Student ID: ");
+
+        if (students.containsKey(id)) {
+            System.out.println("Student ID already exists!");
             return;
         }
+
+        String name = readNonEmpty("Enter Name: ");
+        String course = readNonEmpty("Enter Course: ");
+        double marks = readMarks("Enter Marks (0-100): ");
 
         System.out.println("Select Student Category:");
         System.out.println("1. Regular Student");
         System.out.println("2. Scholarship Student");
-        System.out.print("Enter choice: ");
-        int choice = sc.nextInt();
+        int category;
+        do {
+            category = readInt("Enter choice (1 or 2): ");
+        } while (category != 1 && category != 2);
 
-        if (choice == 1) {
-            students.add(new RegularStudent(id, name, course, marks));
-        } 
-        else if (choice == 2) {
-            students.add(new ScholarshipStudent(id, name, course, marks));
-        } 
-        else {
-            System.out.println("Invalid category!");
-            return;
-        }
+        Student student = (category == 1)
+                ? new RegularStudent(id, name, course, marks)
+                : new ScholarshipStudent(id, name, course, marks);
 
+        students.put(id, student);
         System.out.println("Student added successfully!");
     }
 
-    // Display all students
-    static void displayStudents() {
-
+    private static void displayStudents() {
         if (students.isEmpty()) {
             System.out.println("No student records found.");
             return;
         }
 
         System.out.println("\n===== STUDENT RECORDS =====");
-
-        for (Student s : students) {
+        for (Student s : students.values()) {
             s.display();
         }
     }
 
-    // Search student
-    static void searchStudent() {
+    private static void searchStudent() {
+        int id = readInt("Enter Student ID to search: ");
+        Student s = students.get(id);
 
-        System.out.print("Enter Student ID to search: ");
-        int id = sc.nextInt();
-
-        for (Student s : students) {
-            if (s.id == id) {
-                System.out.println("\nStudent Found:");
-                s.display();
-                return;
-            }
+        if (s == null) {
+            System.out.println("Student not found.");
+        } else {
+            System.out.println("\nStudent Found:");
+            s.display();
         }
-
-        System.out.println("Student not found.");
     }
 
-    // Update student
-    static void updateStudent() {
+    private static void updateStudent() {
+        int id = readInt("Enter Student ID to update: ");
+        Student s = students.get(id);
 
-        System.out.print("Enter Student ID to update: ");
-        int id = sc.nextInt();
-        sc.nextLine();
-
-        for (Student s : students) {
-
-            if (s.id == id) {
-
-                System.out.print("Enter new name: ");
-                s.name = sc.nextLine();
-
-                System.out.print("Enter new course: ");
-                s.course = sc.nextLine();
-
-                System.out.print("Enter new marks: ");
-                double marks = sc.nextDouble();
-
-                if (marks < 0 || marks > 100) {
-                    System.out.println("Invalid marks.");
-                    return;
-                }
-
-                s.marks = marks;
-
-                // Polymorphism
-                s.calculateGrade();
-
-                System.out.println("Student updated successfully!");
-                return;
-            }
+        if (s == null) {
+            System.out.println("Student not found.");
+            return;
         }
 
-        System.out.println("Student not found.");
+        // Collect and validate everything first, then apply,
+        // so a bad input never leaves the record half-updated.
+        String name = readNonEmpty("Enter new name: ");
+        String course = readNonEmpty("Enter new course: ");
+        double marks = readMarks("Enter new marks (0-100): ");
+
+        s.setName(name);
+        s.setCourse(course);
+        s.setMarks(marks);
+
+        System.out.println("Student updated successfully!");
     }
 
-    // Delete student
-    static void deleteStudent() {
+    private static void deleteStudent() {
+        int id = readInt("Enter Student ID to delete: ");
 
-        System.out.print("Enter Student ID to delete: ");
-        int id = sc.nextInt();
-
-        for (int i = 0; i < students.size(); i++) {
-
-            if (students.get(i).id == id) {
-                students.remove(i);
-                System.out.println("Student deleted successfully!");
-                return;
-            }
+        if (students.remove(id) != null) {
+            System.out.println("Student deleted successfully!");
+        } else {
+            System.out.println("Student not found.");
         }
-
-        System.out.println("Student not found.");
     }
 
-    // Main menu
+    // ---------- Main menu ----------
+
     public static void main(String[] args) {
+        try {
+            int choice;
+            do {
+                System.out.println("\n==============================");
+                System.out.println(" STUDENT MANAGEMENT SYSTEM");
+                System.out.println("==============================");
+                System.out.println("1. Add Student");
+                System.out.println("2. Display Students");
+                System.out.println("3. Search Student");
+                System.out.println("4. Update Student");
+                System.out.println("5. Delete Student");
+                System.out.println("6. Exit");
+                System.out.println("==============================");
 
-        int choice;
+                choice = readInt("Enter your choice: ");
 
-        do {
-
-            System.out.println("\n==============================");
-            System.out.println(" STUDENT MANAGEMENT SYSTEM");
-            System.out.println("==============================");
-            System.out.println("1. Add Student");
-            System.out.println("2. Display Students");
-            System.out.println("3. Search Student");
-            System.out.println("4. Update Student");
-            System.out.println("5. Delete Student");
-            System.out.println("6. Exit");
-            System.out.println("==============================");
-
-            System.out.print("Enter your choice: ");
-            choice = sc.nextInt();
-
-            switch (choice) {
-
-                case 1:
-                    addStudent();
-                    break;
-
-                case 2:
-                    displayStudents();
-                    break;
-
-                case 3:
-                    searchStudent();
-                    break;
-
-                case 4:
-                    updateStudent();
-                    break;
-
-                case 5:
-                    deleteStudent();
-                    break;
-
-                case 6:
-                    System.out.println("Thank you for using Student Management System!");
-                    break;
-
-                default:
-                    System.out.println("Invalid choice!");
-            }
-
-        } while (choice != 6);
-
-        sc.close();
+                switch (choice) {
+                    case 1 -> addStudent();
+                    case 2 -> displayStudents();
+                    case 3 -> searchStudent();
+                    case 4 -> updateStudent();
+                    case 5 -> deleteStudent();
+                    case 6 -> System.out.println("Thank you for using Student Management System!");
+                    default -> System.out.println("Invalid choice! Please select 1-6.");
+                }
+            } while (choice != 6);
+        } catch (NoSuchElementException e) {
+            // Input stream closed (e.g. Ctrl+D / Ctrl+Z)
+            System.out.println("\nInput closed. Exiting.");
+        } finally {
+            sc.close();
+        }
     }
 }
